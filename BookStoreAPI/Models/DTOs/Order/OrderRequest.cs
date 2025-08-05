@@ -1,21 +1,20 @@
-﻿using BookStoreAPI.Models.DTOs.OrderDetail;
-
-namespace BookStoreAPI.Models.DTOs.Order
+﻿namespace BookStoreAPI.Models.DTOs.OrderItem
 {
     public class OrderRequest
     {
-        public int CustomerId { get; set; } // Quan trọng nhất
-        public string? Address { get; set; } // Optional — nếu KH chọn địa chỉ khác
-        public string? City { get; set; }    // Optional
-        public string? Country { get; set; } // Optional
-        public string? Phone { get; set; }   // Optional
-        public string Status { get; set; }
-        public DateTime? OrderDate { get; set; } // <-- dòng bị thiếu nè
+        public int? UserId { get; set; }
+        public int? ShippingAddressId { get; set; }
 
-        public string PaymentMethod { get; set; }
-        public string PaymentStatus { get; set; }
-        public decimal TotalAmount { get; set; }
-        public List<OrderDetailRequest> Items { get; set; }
+        public string RecipientName { get; set; }
+        public string Address { get; set; }
+       
+        public string PhoneNumber { get; set; }
+        public string? VoucherCode { get; set; }  // ✅ rõ ràng: có thể null
+
+        public string PaymentMethod { get; set; }  // <== thêm dòng này: "COD" hoặc "PayPal"
+        public bool IsPaid { get; set; }           // <== đã thanh toán hay chưa
+
+        public List<OrderItemRequest> Items { get; set; }
     }
 
 }

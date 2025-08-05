@@ -7,37 +7,31 @@ namespace BookStoreAPI.Models;
 
 public partial class Book
 {
-    public int Id { get; set; }
+    public int BookId { get; set; }
 
     public string Title { get; set; }
 
-    public string Isbn { get; set; }
+    public string Author { get; set; }
 
-    public string Description { get; set; }
+    public int? GenreId { get; set; }
 
     public decimal Price { get; set; }
 
-    public int? Stock { get; set; }
+    public int Stock { get; set; }
 
-    public DateOnly? PublishDate { get; set; }
+    public string Description { get; set; }
 
-    public string Image { get; set; }
+    public DateOnly? PublishedDate { get; set; }
 
-    public int? CategoryId { get; set; }
+    public string CoverImage { get; set; }
 
-    public int? PublisherId { get; set; }
+    public virtual ICollection<ComboBook> ComboBooks { get; set; } = new List<ComboBook>();
 
-    public virtual Category Category { get; set; }
+    public virtual ICollection<Favorite> Favorites { get; set; } = new List<Favorite>();
 
-    public virtual ICollection<FavoriteBook> FavoriteBooks { get; set; } = new List<FavoriteBook>();
+    public virtual Genre Genre { get; set; }
 
-    public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
-
-    public virtual Publisher Publisher { get; set; }
+    public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
 
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
-
-    public virtual ICollection<Author> Authors { get; set; } = new List<Author>();
-
-    public virtual ICollection<Promotion> Promotions { get; set; } = new List<Promotion>();
 }

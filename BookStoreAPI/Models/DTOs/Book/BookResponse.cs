@@ -1,19 +1,22 @@
 ﻿namespace BookStoreAPI.Models.DTOs.Book
 {
-    public class BookResponse
-    {
-        public int Id { get; set; }
-        public string Title { get; set; }
-        public string Isbn { get; set; }
-        public string Description { get; set; }
-        public decimal Price { get; set; }
-        public int? Stock { get; set; }
-        public DateOnly? PublishDate { get; set; }
-        public string ImageUrl { get; set; }
-        public int? CategoryId { get; set; }
-        public int? PublisherId { get; set; }
+    using System;
 
-        public List<string> AuthorNames { get; set; } // 👈 Thêm dòng này
+  
+        public class BookResponse
+        {
+            public int BookId { get; set; }
+            public string Title { get; set; }
+            public string Author { get; set; }
+            public int? GenreId { get; set; }
+            public decimal Price { get; set; }
+            public int Stock { get; set; }
+            public string Description { get; set; }
+            public DateOnly? PublishedDate { get; set; }
+            public string CoverImageUrl { get; set; } // URL full path nè
+        public decimal? AverageRating { get; set; } // ⭐️ Thêm dòng này
+
     }
+
 
 }

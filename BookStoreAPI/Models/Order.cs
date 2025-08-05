@@ -7,29 +7,29 @@ namespace BookStoreAPI.Models;
 
 public partial class Order
 {
-    public int Id { get; set; }
+    public int OrderId { get; set; }
 
-    public int? CustomerId { get; set; }
+    public int? UserId { get; set; }
+
+    public int? ShippingAddressId { get; set; }
 
     public DateTime? OrderDate { get; set; }
 
-    public string Address { get; set; }
-
-    public string City { get; set; }
-
-    public string Country { get; set; }
-
-    public string Phone { get; set; }
-
-    public decimal TotalAmount { get; set; }
+    public decimal? TotalAmount { get; set; }
 
     public string Status { get; set; }
 
     public string PaymentMethod { get; set; }
 
-    public string PaymentStatus { get; set; }
+    public bool? IsPaid { get; set; }
 
-    public virtual Customer Customer { get; set; }
+    public int? VoucherId { get; set; }
 
-    public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+    public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+
+    public virtual ShippingAddress ShippingAddress { get; set; }
+
+    public virtual User User { get; set; }
+
+    public virtual Voucher Voucher { get; set; }
 }

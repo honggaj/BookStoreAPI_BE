@@ -1,33 +1,37 @@
 ﻿using BookStoreAPI.Models;
-using BookStoreAPI.Models.DTOs.Auth;
 using BookStoreAPI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Microsoft.Extensions.FileProviders;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Add services to the container
 builder.Services.AddControllers();
 
-// Thêm DbContext vào DI container
+// DbContext
 builder.Services.AddDbContext<BookStoreDBContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Thêm CORS vào DI container
+// ✅ Thêm CORS cho localhost + Google Sign-In
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngularApp", policy =>
     {
-        policy.WithOrigins("http://localhost:4200")  // Cho phép frontend từ cổng 4200
-              .AllowAnyMethod()                     // Cho phép tất cả HTTP methods (GET, POST, PUT, DELETE...)
-              .AllowAnyHeader();                    // Cho phép tất cả headers
+        policy
+            .SetIsOriginAllowed(origin =>
+                origin == "http://localhost:4200" ||
+                origin.StartsWith("https://accounts.google.com") ||
+                origin.EndsWith(".googleusercontent.com"))
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
-// Cấu hình Swagger/OpenAPI
-builder.Services.AddEndpointsApiExplorer();
+// JWT Auth
 builder.Services.AddScoped<JwtService>();
 
 builder.Services.AddAuthentication("Bearer")
@@ -42,21 +46,21 @@ builder.Services.AddAuthentication("Bearer")
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Issuer"],
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])
-            )
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
         };
     });
 
+builder.Services.AddAuthorization();
+
+// Swagger + JWT
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "BookStoreAPI", Version = "v1" });
 
-    // Bỏ đoạn MapType<LoginResponse> trước đây
-
-    // Thêm security definition cho JWT (nếu cần)
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme",
+        Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
@@ -79,25 +83,34 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-builder.Services.AddAuthorization();
-
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Middleware order matters!
+app.UseHttpsRedirection();
+
+// ✅ CORS phải trước Auth
+app.UseCors("AllowAngularApp");
+
+// Static files
+app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "books")),
+    RequestPath = "/images/books"
+});
+
+// Swagger
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// Thêm authentication middleware để xử lý token
+// Auth
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseHttpsRedirection();
 
-// Thêm dòng này để áp dụng CORS
-app.UseCors("AllowAngularApp");
-
-app.UseStaticFiles(); // Bắt buộc phải có
 app.MapControllers();
+
 app.Run();

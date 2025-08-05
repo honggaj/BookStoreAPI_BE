@@ -15,39 +15,27 @@
    "T4TemplatePath": null,
    "Tables": [
       {
-         "Name": "[dbo].[Admins]",
-         "ObjectType": 0
-      },
-      {
-         "Name": "[dbo].[Authors]",
-         "ObjectType": 0
-      },
-      {
-         "Name": "[dbo].[BookAuthors]",
-         "ObjectType": 0
-      },
-      {
-         "Name": "[dbo].[BookPromotions]",
-         "ObjectType": 0
-      },
-      {
          "Name": "[dbo].[Books]",
          "ObjectType": 0
       },
       {
-         "Name": "[dbo].[Categories]",
+         "Name": "[dbo].[ComboBooks]",
          "ObjectType": 0
       },
       {
-         "Name": "[dbo].[Customers]",
+         "Name": "[dbo].[Combos]",
          "ObjectType": 0
       },
       {
-         "Name": "[dbo].[FavoriteBooks]",
+         "Name": "[dbo].[Favorites]",
          "ObjectType": 0
       },
       {
-         "Name": "[dbo].[OrderDetails]",
+         "Name": "[dbo].[Genres]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Order_Items]",
          "ObjectType": 0
       },
       {
@@ -55,15 +43,19 @@
          "ObjectType": 0
       },
       {
-         "Name": "[dbo].[Promotions]",
-         "ObjectType": 0
-      },
-      {
-         "Name": "[dbo].[Publishers]",
-         "ObjectType": 0
-      },
-      {
          "Name": "[dbo].[Reviews]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Shipping_Addresses]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Users]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Vouchers]",
          "ObjectType": 0
       }
    ],

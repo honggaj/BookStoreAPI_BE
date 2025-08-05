@@ -1,329 +1,454 @@
-﻿using BookStoreAPI.Models;
-using BookStoreAPI.Models.DTOs.Book;
+﻿    using BookStoreAPI.Models;
+    using BookStoreAPI.Models.DTOs.Book;
+    using BookStoreAPI.Models.Response;
+    using Microsoft.AspNetCore.Hosting;
+    using Microsoft.AspNetCore.Mvc;
+    using Microsoft.EntityFrameworkCore;
 
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-
-namespace BookStoreAPI.Controllers
-{
-    [Route("api/[controller]")]
-    [ApiController]
-    public class BookController : ControllerBase
+    namespace BookStoreAPI.Controllers
     {
-        private readonly BookStoreDBContext _context;
-        private readonly IWebHostEnvironment _env;
-
-        public BookController(BookStoreDBContext context, IWebHostEnvironment env)
+        [Route("api/[controller]")]
+        [ApiController]
+        public class BookController : ControllerBase
         {
-            _context = context;
-            _env = env;
-        }
+            private readonly BookStoreDBContext _context;
+            private readonly IWebHostEnvironment _env;
 
-        [HttpGet("BookList")]
-        public async Task<ActionResult<IEnumerable<BookResponse>>> GetBooks()
-        {
-            var books = await _context.Books
-                .Include(b => b.Authors) // 👈 Include tác giả
-                .Select(book => new BookResponse
-                {
-                    Id = book.Id,
-                    Title = book.Title,
-                    Isbn = book.Isbn,
-                    Description = book.Description,
-                    Price = book.Price,
-                    Stock = book.Stock,
-                    PublishDate = book.PublishDate,
-                    ImageUrl = $"/images/books/{book.Image}",
-                    CategoryId = book.CategoryId,
-                    PublisherId = book.PublisherId,
-                    AuthorNames = book.Authors.Select(a => a.Name).ToList() // 👈 Lấy tên tác giả
-                })
-                .ToListAsync();
-
-            return books;
-        }
-
-        [HttpPost("BookCreate")]
-        [Consumes("multipart/form-data")]
-        public async Task<ActionResult<BookResponse>> CreateBook([FromForm] BookRequest request)
-        {
-            string imageName = null;
-
-            // Save image if provided
-            if (request.ImageFile != null && request.ImageFile.Length > 0)
+            public BookController(BookStoreDBContext context, IWebHostEnvironment env)
             {
-                string uploadsFolder = Path.Combine(_env.WebRootPath, "images", "books");
-                Directory.CreateDirectory(uploadsFolder);
-
-                string fileExt = Path.GetExtension(request.ImageFile.FileName);
-                string rawName = Path.GetFileNameWithoutExtension(request.ImageFile.FileName);
-
-                imageName = Slugify(rawName) + "-" + Guid.NewGuid().ToString("N").Substring(0, 6) + fileExt;
-                string filePath = Path.Combine(uploadsFolder, imageName);
-
-                using var stream = new FileStream(filePath, FileMode.Create);
-                await request.ImageFile.CopyToAsync(stream);
+                _context = context;
+                _env = env;
             }
 
-            // Lấy danh sách tác giả từ AuthorIds
-            var authors = await _context.Authors
-                .Where(a => request.AuthorIds.Contains(a.Id))
-                .ToListAsync();
-
-            var book = new Book
+            [HttpGet]
+            public async Task<ActionResult<ResultCustomModel<List<BookResponse>>>> GetAll()
             {
-                Title = request.Title,
-                Isbn = request.Isbn,
-                Description = request.Description,
-                Price = request.Price,
-                Stock = request.Stock,
-                PublishDate = request.PublishDate,
-                Image = imageName,
-                CategoryId = request.CategoryId,
-                PublisherId = request.PublisherId,
-                Authors = authors // Gán trực tiếp để EF tạo liên kết
-            };
+                var books = await _context.Books
+                    .Select(b => new BookResponse
+                    {
+                        BookId = b.BookId,
+                        Title = b.Title,
+                        Author = b.Author,
+                        GenreId = b.GenreId,
+                        Price = b.Price,
+                        Stock = b.Stock,
+                        Description = b.Description,
+                        PublishedDate = b.PublishedDate,
+                        CoverImageUrl = string.IsNullOrEmpty(b.CoverImage)
+                            ? null
+                            : $"{Request.Scheme}://{Request.Host}/images/books/{b.CoverImage}"
+                    })
+                    .ToListAsync(); // ✅ Tách ra khỏi EF Core để xử lý tiếp
 
-            _context.Books.Add(book);
-            await _context.SaveChangesAsync();
+                // Tính average rating bằng LINQ thuần sau khi lấy xong
+                var ratingDict = await _context.Reviews
+                    .Where(r => r.Rating.HasValue)
+                    .GroupBy(r => r.BookId)
+                    .Select(g => new
+                    {
+                        BookId = g.Key,
+                        AvgRating = g.Average(r => r.Rating.Value)
+                    })
+                    .ToDictionaryAsync(x => x.BookId ?? 0, x => (decimal?)x.AvgRating);
 
-            return CreatedAtAction(nameof(GetBookById), new { id = book.Id }, new BookResponse
-            {
-                Id = book.Id,
-                Title = book.Title,
-                Isbn = book.Isbn,
-                Description = book.Description,
-                Price = book.Price,
-                Stock = book.Stock,
-                PublishDate = book.PublishDate,
-                ImageUrl = $"/images/books/{book.Image}",
-                CategoryId = book.CategoryId,
-                PublisherId = book.PublisherId,
-                AuthorNames = authors.Select(a => a.Name).ToList() // 👈 Thêm nếu muốn trả về tên tác giả
-            });
-
-        }
-
-        // GET: api/Book/BookById/5
-        [HttpGet("BookById/{id}")]
-        public async Task<ActionResult<BookResponse>> GetBookById(int id)
-        {
-            var book = await _context.Books
-                .Include(b => b.Authors) // 👈 Bao gồm dữ liệu tác giả
-                .FirstOrDefaultAsync(b => b.Id == id);
-
-            if (book == null)
-                return NotFound();
-
-            return new BookResponse
-            {
-                Id = book.Id,
-                Title = book.Title,
-                Isbn = book.Isbn,
-                Description = book.Description,
-                Price = book.Price,
-                Stock = book.Stock,
-                PublishDate = book.PublishDate,
-                ImageUrl = $"/images/books/{book.Image}",
-                CategoryId = book.CategoryId,
-                PublisherId = book.PublisherId,
-                AuthorNames = book.Authors.Select(a => a.Name).ToList() // 👈 Trích danh sách tên tác giả
-            };
-        }
-
-
-        [HttpPut("BookUpdate/{id}")]
-        public async Task<IActionResult> UpdateBook(int id, [FromForm] BookRequest request)
-        {
-            var book = await _context.Books
-                .Include(b => b.Authors) // Bao gồm Authors để cập nhật liên kết
-                .FirstOrDefaultAsync(b => b.Id == id);
-
-            if (book == null)
-                return NotFound();
-
-            // Cập nhật hình ảnh nếu có file mới
-            if (request.ImageFile != null && request.ImageFile.Length > 0)
-            {
-                string uploadsFolder = Path.Combine(_env.WebRootPath, "images", "books");
-                Directory.CreateDirectory(uploadsFolder);
-
-                string fileExt = Path.GetExtension(request.ImageFile.FileName);
-                string rawName = Path.GetFileNameWithoutExtension(request.ImageFile.FileName);
-                string imageName = Slugify(rawName) + "-" + Guid.NewGuid().ToString("N").Substring(0, 6) + fileExt;
-                string filePath = Path.Combine(uploadsFolder, imageName);
-
-                using var stream = new FileStream(filePath, FileMode.Create);
-                await request.ImageFile.CopyToAsync(stream);
-
-                // Xóa ảnh cũ
-                if (!string.IsNullOrEmpty(book.Image))
+                // Gán average rating vào từng book
+                foreach (var book in books)
                 {
-                    string oldImagePath = Path.Combine(uploadsFolder, book.Image);
-                    if (System.IO.File.Exists(oldImagePath))
-                        System.IO.File.Delete(oldImagePath);
+                    if (ratingDict.TryGetValue(book.BookId, out var avg))
+                    {
+                        book.AverageRating = avg;
+                    }
+                    else
+                    {
+                        book.AverageRating = null;
+                    }
                 }
 
-                book.Image = imageName;
+                return Ok(new ResultCustomModel<List<BookResponse>>
+                {
+                    Success = true,
+                    Message = $"Tìm thấy {books.Count} sách",
+                    Data = books
+                });
             }
 
-            // Cập nhật các trường thông tin sách
-            if (!string.IsNullOrWhiteSpace(request.Title))
-                book.Title = request.Title.Trim();
 
-            if (!string.IsNullOrWhiteSpace(request.Isbn))
-                book.Isbn = request.Isbn.Trim();
-
-            if (!string.IsNullOrWhiteSpace(request.Description))
-                book.Description = request.Description.Trim();
-
-            if (request.Price > 0)
-                book.Price = request.Price;
-
-            if (request.Stock >= 0)
-                book.Stock = request.Stock;
-
-            if (request.PublishDate != default)
-                book.PublishDate = request.PublishDate;
-
-            if (request.CategoryId > 0)
-                book.CategoryId = request.CategoryId;
-
-            if (request.PublisherId > 0)
-                book.PublisherId = request.PublisherId;
-
-            // Cập nhật danh sách tác giả nếu có AuthorIds
-            if (request.AuthorIds != null && request.AuthorIds.Any())
+            [HttpGet("{id}")]
+            public async Task<ActionResult<ResultCustomModel<BookResponse>>> GetById(int id)
             {
-                // Lấy các tác giả theo request.AuthorIds
-                var authors = await _context.Authors
-                    .Where(a => request.AuthorIds.Contains(a.Id))
+                var b = await _context.Books.FindAsync(id);
+                if (b == null)
+                    return NotFound(new ResultCustomModel<object> { Success = false, Message = "Không tìm thấy sách" });
+
+                // ✅ Tính average rating cho sách này
+                var avgRating = await _context.Reviews
+                    .Where(r => r.BookId == id && r.Rating.HasValue)
+                    .AverageAsync(r => (double?)r.Rating) ?? 0;
+
+                var result = new BookResponse
+                {
+                    BookId = b.BookId,
+                    Title = b.Title,
+                    Author = b.Author,
+                    GenreId = b.GenreId,
+                    Price = b.Price,
+                    Stock = b.Stock,
+                    Description = b.Description,
+                    PublishedDate = b.PublishedDate,
+                    CoverImageUrl = string.IsNullOrEmpty(b.CoverImage)
+                        ? null
+                        : $"{Request.Scheme}://{Request.Host}/images/books/{b.CoverImage}",
+                    AverageRating = Math.Round((decimal)avgRating, 1) // 👈 Gán vào nè
+                };
+
+                return Ok(new ResultCustomModel<BookResponse>
+                {
+                    Success = true,
+                    Message = "Lấy thông tin sách thành công",
+                    Data = result
+                });
+            }
+
+
+            // POST: api/Book/Create
+            [HttpPost("Create")]
+            public async Task<ActionResult<ResultCustomModel<object>>> Create([FromForm] BookRequest request)
+            {
+                var fileName = await SaveImageAsync(request.CoverImage);
+
+                var book = new Book
+                {
+                    Title = request.Title,
+                    Author = request.Author,
+                    GenreId = request.GenreId,
+                    Price = request.Price,
+                    Stock = request.Stock,
+                    Description = request.Description,
+                    PublishedDate = request.PublishedDate,
+                    CoverImage = fileName
+                };
+
+                _context.Books.Add(book);
+                await _context.SaveChangesAsync();
+
+                return Ok(new ResultCustomModel<object>
+                {
+                    Success = true,
+                    Message = "Đã thêm sách",
+                    Data = new { id = book.BookId }
+                });
+            }
+
+            // PUT: api/Book/Update/5
+            [HttpPut("Update/{id}")]
+            public async Task<ActionResult<ResultCustomModel<object>>> Update(int id, [FromForm] BookRequest request)
+            {
+                var book = await _context.Books.FindAsync(id);
+                if (book == null)
+                    return NotFound(new ResultCustomModel<object> { Success = false, Message = "Không tìm thấy sách" });
+
+                if (request.CoverImage != null)
+                {
+                    DeleteImage(book.CoverImage);
+                    book.CoverImage = await SaveImageAsync(request.CoverImage);
+                }
+
+                book.Title = request.Title;
+                book.Author = request.Author;
+                book.GenreId = request.GenreId;
+                book.Price = request.Price;
+                book.Stock = request.Stock;
+                book.Description = request.Description;
+                book.PublishedDate = request.PublishedDate;
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new ResultCustomModel<object>
+                {
+                    Success = true,
+                    Message = "Đã cập nhật sách"
+                });
+            }
+
+            // DELETE: api/Book/Delete/5
+            [HttpDelete("Delete/{id}")]
+            public async Task<ActionResult<ResultCustomModel<object>>> Delete(int id)
+            {
+                var book = await _context.Books.FindAsync(id);
+                if (book == null)
+                    return NotFound(new ResultCustomModel<object> { Success = false, Message = "Không tìm thấy sách" });
+
+                DeleteImage(book.CoverImage);
+                _context.Books.Remove(book);
+                await _context.SaveChangesAsync();
+
+                return Ok(new ResultCustomModel<object>
+                {
+                    Success = true,
+                    Message = "Đã xóa sách"
+                });
+            }
+
+            // GET: api/Book/Search?keyword=abc
+            [HttpGet("Search")]
+            public async Task<ActionResult<ResultCustomModel<List<BookResponse>>>> Search(string keyword)
+            {
+                var result = await _context.Books
+                    .Where(b => b.Title.Contains(keyword) || b.Author.Contains(keyword))
+                    .Select(b => new BookResponse
+                    {
+                        BookId = b.BookId,
+                        Title = b.Title,
+                        Author = b.Author,
+                        GenreId = b.GenreId,
+                        Price = b.Price,
+                        Stock = b.Stock,
+                        Description = b.Description,
+                        PublishedDate = b.PublishedDate,
+                        CoverImageUrl = string.IsNullOrEmpty(b.CoverImage)
+                            ? null
+                            : $"{Request.Scheme}://{Request.Host}/images/books/{b.CoverImage}"
+                    })
                     .ToListAsync();
 
-                // Cập nhật liên kết nhiều-nhiều
-                book.Authors.Clear();   // Xóa hết tác giả cũ liên kết với sách này
-                foreach (var author in authors)
+                return Ok(new ResultCustomModel<List<BookResponse>>
                 {
-                    book.Authors.Add(author);
-                }
+                    Success = true,
+                    Message = $"Tìm thấy {result.Count} sách",
+                    Data = result
+                });
             }
-
-            await _context.SaveChangesAsync();
-            return NoContent();
-        }
-
-
-        // DELETE: api/Book/BookDelete/{id}
-        [HttpDelete("BookDelete/{id}")]
-        public async Task<IActionResult> DeleteBook(int id)
-        {
-            var book = await _context.Books.FindAsync(id);
-            if (book == null)
-                return NotFound();
-
-            // Xóa hình ảnh khỏi thư mục nếu có
-            if (!string.IsNullOrEmpty(book.Image))
+            [HttpGet("AdvancedSearch")]
+            public async Task<ActionResult<ResultCustomModel<List<BookResponse>>>> AdvancedSearch(
+        string? keyword,
+        int? genreId,
+        decimal? minPrice,
+        decimal? maxPrice,
+        DateOnly? publishedAfter,
+        string? sortBy = "title", // title | price | date
+        bool ascending = true)
             {
-                string uploadsFolder = Path.Combine(_env.WebRootPath, "images", "books");
-                string imagePath = Path.Combine(uploadsFolder, book.Image);
-                if (System.IO.File.Exists(imagePath))
-                    System.IO.File.Delete(imagePath);
+                var query = _context.Books.AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(keyword))
+                    query = query.Where(b => b.Title.Contains(keyword) || b.Author.Contains(keyword));
+
+                if (genreId.HasValue)
+                    query = query.Where(b => b.GenreId == genreId);
+
+                if (minPrice.HasValue)
+                    query = query.Where(b => b.Price >= minPrice);
+
+                if (maxPrice.HasValue)
+                    query = query.Where(b => b.Price <= maxPrice);
+
+                if (publishedAfter.HasValue)
+                    query = query.Where(b => b.PublishedDate >= publishedAfter);
+
+                // Sắp xếp
+                query = sortBy switch
+                {
+                    "price" => ascending ? query.OrderBy(b => b.Price) : query.OrderByDescending(b => b.Price),
+                    "date" => ascending ? query.OrderBy(b => b.PublishedDate) : query.OrderByDescending(b => b.PublishedDate),
+                    _ => ascending ? query.OrderBy(b => b.Title) : query.OrderByDescending(b => b.Title),
+                };
+
+                var result = await query.Select(b => new BookResponse
+                {
+                    BookId = b.BookId,
+                    Title = b.Title,
+                    Author = b.Author,
+                    GenreId = b.GenreId,
+                    Price = b.Price,
+                    Stock = b.Stock,
+                    Description = b.Description,
+                    PublishedDate = b.PublishedDate,
+                    CoverImageUrl = string.IsNullOrEmpty(b.CoverImage)
+                        ? null
+                        : $"{Request.Scheme}://{Request.Host}/images/books/{b.CoverImage}"
+                }).ToListAsync();
+
+                return Ok(new ResultCustomModel<List<BookResponse>>
+                {
+                    Success = true,
+                    Message = $"Tìm thấy {result.Count} sách",
+                    Data = result
+                });
             }
 
-            _context.Books.Remove(book);
-            await _context.SaveChangesAsync();
-            return NoContent();
-        }
-
-
-        private string Slugify(string input)
-        {
-            string normalized = input.Normalize(NormalizationForm.FormD);
-            var sb = new StringBuilder();
-
-            foreach (char c in normalized)
+            // GET: api/Book/ByGenre/2
+            [HttpGet("ByGenre/{genreId}")]
+            public async Task<ActionResult<ResultCustomModel<List<BookResponse>>>> GetByGenre(int genreId)
             {
-                if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
-                    sb.Append(c);
+                var books = await _context.Books
+                    .Where(b => b.GenreId == genreId)
+                    .Select(b => new BookResponse
+                    {
+                        BookId = b.BookId,
+                        Title = b.Title,
+                        Author = b.Author,
+                        GenreId = b.GenreId,
+                        Price = b.Price,
+                        Stock = b.Stock,
+                        Description = b.Description,
+                        PublishedDate = b.PublishedDate,
+                        CoverImageUrl = string.IsNullOrEmpty(b.CoverImage)
+                            ? null
+                            : $"{Request.Scheme}://{Request.Host}/images/books/{b.CoverImage}"
+                    })
+                    .ToListAsync();
+
+                return Ok(new ResultCustomModel<List<BookResponse>>
+                {
+                    Success = true,
+                    Message = $"Tìm thấy {books.Count} sách thuộc thể loại {genreId}",
+                    Data = books
+                });
             }
 
-            string cleaned = sb.ToString().Normalize(NormalizationForm.FormC);
-            cleaned = Regex.Replace(cleaned.ToLower(), @"[^a-z0-9\s-]", "");
-            cleaned = Regex.Replace(cleaned, @"\s+", "-").Trim('-');
+            [HttpGet("best-sellers")]
+            public async Task<ActionResult<ResultCustomModel<List<BookResponse>>>> GetBestSellers()
+            {
+                var bestSellers = await _context.OrderItems
+                    .GroupBy(o => o.BookId)
+                    .Select(g => new
+                    {
+                        BookId = g.Key,
+                        TotalSold = g.Sum(x => x.Quantity)
+                    })
+                    .OrderByDescending(x => x.TotalSold)
+                    .Take(10)
+                    .Join(_context.Books, g => g.BookId, b => b.BookId, (g, b) => b)
+                    .Select(b => new BookResponse
+                    {
+                        BookId = b.BookId,
+                        Title = b.Title,
+                        Author = b.Author,
+                        GenreId = b.GenreId,
+                        Price = b.Price,
+                        Stock = b.Stock,
+                        Description = b.Description,
+                        PublishedDate = b.PublishedDate,
+                        CoverImageUrl = string.IsNullOrEmpty(b.CoverImage)
+                            ? null
+                            : $"{Request.Scheme}://{Request.Host}/images/books/{b.CoverImage}"
+                    })
+                    .ToListAsync();
 
-            return cleaned;
-        }
-        // GET: api/Book/BooksByCategory/3
-        [HttpGet("BooksByCategory/{categoryId}")]
-        public async Task<ActionResult<IEnumerable<BookResponse>>> GetBooksByCategory(int categoryId)
-        {
-            var books = await _context.Books
-                .Where(b => b.CategoryId == categoryId)
-                .Include(b => b.Authors)
-                .Select(book => new BookResponse
+                return Ok(new ResultCustomModel<List<BookResponse>>
                 {
-                    Id = book.Id,
-                    Title = book.Title,
-                    Isbn = book.Isbn,
-                    Description = book.Description,
-                    Price = book.Price,
-                    Stock = book.Stock,
-                    PublishDate = book.PublishDate,
-                    ImageUrl = $"/images/books/{book.Image}",
-                    CategoryId = book.CategoryId,
-                    PublisherId = book.PublisherId,
-                    AuthorNames = book.Authors.Select(a => a.Name).ToList()
-                })
-                .ToListAsync();
+                    Success = true,
+                    Message = $"Top {bestSellers.Count} sách bán chạy nhất",
+                    Data = bestSellers
+                });
+            }
 
-            return books;
-        }
-        [HttpGet("BooksByParentCategory/{parentId}")]
-        public async Task<ActionResult<IEnumerable<BookResponse>>> GetBooksByParentCategory(int parentId)
-        {
-            // Lấy category có id là parentId
-            var parentCategory = await _context.Categories.FindAsync(parentId);
-            if (parentCategory == null)
-                return NotFound("Category not found");
+            [HttpGet("latest")]
+            public async Task<ActionResult<ResultCustomModel<List<BookResponse>>>> GetLatestBooks()
+            {
+                var books = await _context.Books
+                    .OrderByDescending(b => b.PublishedDate)
+                    .Take(10)
+                    .Select(b => new BookResponse
+                    {
+                        BookId = b.BookId,
+                        Title = b.Title,
+                        Author = b.Author,
+                        GenreId = b.GenreId,
+                        Price = b.Price,
+                        Stock = b.Stock,
+                        Description = b.Description,
+                        PublishedDate = b.PublishedDate,
+                        CoverImageUrl = string.IsNullOrEmpty(b.CoverImage)
+                            ? null
+                            : $"{Request.Scheme}://{Request.Host}/images/books/{b.CoverImage}"
+                    })
+                    .ToListAsync();
 
-            // Lấy tất cả ID của category con
-            var childCategoryIds = await _context.Categories
-                .Where(c => c.ParentId == parentId)
-                .Select(c => c.Id)
-                .ToListAsync();
-
-            // Tạo danh sách categoryId để tìm sách (bao gồm parentId và các con)
-            var categoryIdsToSearch = new List<int> { parentId };
-            categoryIdsToSearch.AddRange(childCategoryIds);
-
-            // Truy vấn sách theo các category này
-            var books = await _context.Books
-                .Include(b => b.Authors)
-                .Where(b => b.CategoryId.HasValue && categoryIdsToSearch.Contains(b.CategoryId.Value))
-                .Select(book => new BookResponse
+                return Ok(new ResultCustomModel<List<BookResponse>>
                 {
-                    Id = book.Id,
-                    Title = book.Title,
-                    Isbn = book.Isbn,
-                    Description = book.Description,
-                    Price = book.Price,
-                    Stock = book.Stock,
-                    PublishDate = book.PublishDate,
-                    ImageUrl = $"/images/books/{book.Image}",
-                    CategoryId = book.CategoryId,
-                    PublisherId = book.PublisherId,
-                    AuthorNames = book.Authors.Select(a => a.Name).ToList()
+                    Success = true,
+                    Message = $"Top {books.Count} sách mới nhất",
+                    Data = books
+                });
+            }
+
+
+        [HttpGet("top-rated")]
+        public async Task<ActionResult<ResultCustomModel<List<BookResponse>>>> GetTopRatedBooks()
+        {
+            // 1. Tính điểm trung bình của từng sách
+            var avgRatings = await _context.Reviews
+                .Where(r => r.Rating.HasValue)
+                .GroupBy(r => r.BookId)
+                .Select(g => new
+                {
+                    BookId = g.Key,
+                    AvgRating = g.Average(r => r.Rating.Value)
                 })
+                .OrderByDescending(x => x.AvgRating)
+                .Take(10) // Lấy top 10
                 .ToListAsync();
 
-            return books;
+            var topBookIds = avgRatings.Select(x => x.BookId).ToList();
+
+            // 2. Lấy thông tin sách
+            var books = await _context.Books
+                .Where(b => topBookIds.Contains(b.BookId))
+                .ToListAsync();
+
+            // 3. Map ra response
+            var responses = books.Select(b => new BookResponse
+            {
+                BookId = b.BookId,
+                Title = b.Title,
+                Author = b.Author,
+                GenreId = b.GenreId,
+                Price = b.Price,
+                Stock = b.Stock,
+                Description = b.Description,
+                PublishedDate = b.PublishedDate,
+                CoverImageUrl = string.IsNullOrEmpty(b.CoverImage)
+                    ? null
+                    : $"{Request.Scheme}://{Request.Host}/images/books/{b.CoverImage}",
+                AverageRating = Math.Round((decimal?)avgRatings.FirstOrDefault(x => x.BookId == b.BookId)?.AvgRating ?? 0, 1)
+            })
+            .OrderByDescending(x => x.AverageRating) // Đảm bảo thứ tự
+            .ToList();
+
+            return Ok(new ResultCustomModel<List<BookResponse>>
+            {
+                Success = true,
+                Message = $"Top {responses.Count} sách được đánh giá cao nhất",
+                Data = responses
+            });
         }
 
 
+        // Helpers
+        private async Task<string> SaveImageAsync(IFormFile file)
+            {
+                if (file == null) return null;
+
+                var folder = Path.Combine(_env.WebRootPath, "images", "books");
+                Directory.CreateDirectory(folder); // đảm bảo tồn tại
+
+                var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
+                var path = Path.Combine(folder, fileName);
+
+                using var stream = new FileStream(path, FileMode.Create);
+                await file.CopyToAsync(stream);
+
+                return fileName;
+            }
+
+            private void DeleteImage(string fileName)
+            {
+                if (string.IsNullOrEmpty(fileName)) return;
+
+                var path = Path.Combine(_env.WebRootPath, "images", "books", fileName);
+                if (System.IO.File.Exists(path))
+                    System.IO.File.Delete(path);
+            }
+        }
     }
-}

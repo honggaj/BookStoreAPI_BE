@@ -13,277 +13,308 @@ public partial class BookStoreDBContext : DbContext
     {
     }
 
-    public virtual DbSet<Admin> Admins { get; set; }
-
-    public virtual DbSet<Author> Authors { get; set; }
-
     public virtual DbSet<Book> Books { get; set; }
 
-    public virtual DbSet<Category> Categories { get; set; }
+    public virtual DbSet<Combo> Combos { get; set; }
 
-    public virtual DbSet<Customer> Customers { get; set; }
+    public virtual DbSet<ComboBook> ComboBooks { get; set; }
 
-    public virtual DbSet<FavoriteBook> FavoriteBooks { get; set; }
+    public virtual DbSet<Favorite> Favorites { get; set; }
+
+    public virtual DbSet<Genre> Genres { get; set; }
 
     public virtual DbSet<Order> Orders { get; set; }
 
-    public virtual DbSet<OrderDetail> OrderDetails { get; set; }
-
-    public virtual DbSet<Promotion> Promotions { get; set; }
-
-    public virtual DbSet<Publisher> Publishers { get; set; }
+    public virtual DbSet<OrderItem> OrderItems { get; set; }
 
     public virtual DbSet<Review> Reviews { get; set; }
 
+    public virtual DbSet<ShippingAddress> ShippingAddresses { get; set; }
+
+    public virtual DbSet<User> Users { get; set; }
+
+    public virtual DbSet<Voucher> Vouchers { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Admin>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PK__Admins__3214EC0786212360");
-
-            entity.HasIndex(e => e.Email, "UQ__Admins__A9D10534EBD9E8D9").IsUnique();
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
-            entity.Property(e => e.Email)
-                .IsRequired()
-                .HasMaxLength(100)
-                .IsUnicode(false);
-            entity.Property(e => e.FullName)
-                .IsRequired()
-                .HasMaxLength(100);
-            entity.Property(e => e.PasswordHash)
-                .IsRequired()
-                .HasMaxLength(255)
-                .IsUnicode(false);
-            entity.Property(e => e.Role)
-                .HasMaxLength(50)
-                .HasDefaultValue("Admin");
-        });
-
-        modelBuilder.Entity<Author>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PK__Authors__3214EC07BB0A1563");
-
-            entity.Property(e => e.Name)
-                .IsRequired()
-                .HasMaxLength(100);
-            entity.Property(e => e.Nationality).HasMaxLength(50);
-        });
-
         modelBuilder.Entity<Book>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Books__3214EC076E0038FB");
+            entity.HasKey(e => e.BookId).HasName("PK__Books__490D1AE19696EA25");
 
-            entity.HasIndex(e => e.Isbn, "UQ__Books__447D36EA9B7CC3A1").IsUnique();
-
-            entity.Property(e => e.Image).HasMaxLength(255);
-            entity.Property(e => e.Isbn)
-                .HasMaxLength(20)
-                .IsUnicode(false)
-                .HasColumnName("ISBN");
-            entity.Property(e => e.Price).HasColumnType("decimal(10, 2)");
-            entity.Property(e => e.Stock).HasDefaultValue(0);
-            entity.Property(e => e.Title)
-                .IsRequired()
-                .HasMaxLength(200);
-
-            entity.HasOne(d => d.Category).WithMany(p => p.Books)
-                .HasForeignKey(d => d.CategoryId)
-                .HasConstraintName("FK__Books__CategoryI__403A8C7D");
-
-            entity.HasOne(d => d.Publisher).WithMany(p => p.Books)
-                .HasForeignKey(d => d.PublisherId)
-                .HasConstraintName("FK__Books__Publisher__412EB0B6");
-
-            entity.HasMany(d => d.Authors).WithMany(p => p.Books)
-                .UsingEntity<Dictionary<string, object>>(
-                    "BookAuthor",
-                    r => r.HasOne<Author>().WithMany()
-                        .HasForeignKey("AuthorId")
-                        .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK__BookAutho__Autho__44FF419A"),
-                    l => l.HasOne<Book>().WithMany()
-                        .HasForeignKey("BookId")
-                        .HasConstraintName("FK_BookAuthors_Books"),
-                    j =>
-                    {
-                        j.HasKey("BookId", "AuthorId").HasName("PK__BookAuth__6AED6DC495AAFF70");
-                        j.ToTable("BookAuthors");
-                    });
-
-            entity.HasMany(d => d.Promotions).WithMany(p => p.Books)
-                .UsingEntity<Dictionary<string, object>>(
-                    "BookPromotion",
-                    r => r.HasOne<Promotion>().WithMany()
-                        .HasForeignKey("PromotionId")
-                        .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK__BookPromo__Promo__60A75C0F"),
-                    l => l.HasOne<Book>().WithMany()
-                        .HasForeignKey("BookId")
-                        .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK__BookPromo__BookI__5FB337D6"),
-                    j =>
-                    {
-                        j.HasKey("BookId", "PromotionId").HasName("PK__BookProm__D8CC80FB0F059B40");
-                        j.ToTable("BookPromotions");
-                    });
-        });
-
-        modelBuilder.Entity<Category>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PK__Categori__3214EC076E8CB90D");
-
-            entity.Property(e => e.Name)
-                .IsRequired()
-                .HasMaxLength(100);
-
-            entity.HasOne(d => d.Parent).WithMany(p => p.InverseParent)
-                .HasForeignKey(d => d.ParentId)
-                .HasConstraintName("FK__Categorie__Paren__37A5467C");
-        });
-
-        modelBuilder.Entity<Customer>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PK__Customer__3214EC07D2366974");
-
-            entity.HasIndex(e => e.Email, "UQ__Customer__A9D10534C439BD31").IsUnique();
-
-            entity.Property(e => e.Address).HasMaxLength(300);
-            entity.Property(e => e.City).HasMaxLength(50);
-            entity.Property(e => e.Country).HasMaxLength(50);
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
-            entity.Property(e => e.District).HasMaxLength(100);
-            entity.Property(e => e.Email)
+            entity.Property(e => e.BookId).HasColumnName("book_id");
+            entity.Property(e => e.Author)
                 .IsRequired()
                 .HasMaxLength(100)
-                .IsUnicode(false);
-            entity.Property(e => e.FullName)
-                .IsRequired()
-                .HasMaxLength(100);
-            entity.Property(e => e.PasswordHash)
+                .HasColumnName("author");
+            entity.Property(e => e.CoverImage)
+                .HasMaxLength(500)
+                .HasColumnName("cover_image");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.GenreId).HasColumnName("genre_id");
+            entity.Property(e => e.Price)
+                .HasColumnType("decimal(10, 2)")
+                .HasColumnName("price");
+            entity.Property(e => e.PublishedDate).HasColumnName("published_date");
+            entity.Property(e => e.Stock).HasColumnName("stock");
+            entity.Property(e => e.Title)
                 .IsRequired()
                 .HasMaxLength(255)
-                .IsUnicode(false);
-            entity.Property(e => e.Phone)
-                .HasMaxLength(20)
-                .IsUnicode(false);
-            entity.Property(e => e.SpecificAddress).HasMaxLength(200);
-            entity.Property(e => e.Ward).HasMaxLength(100);
+                .HasColumnName("title");
+
+            entity.HasOne(d => d.Genre).WithMany(p => p.Books)
+                .HasForeignKey(d => d.GenreId)
+                .HasConstraintName("FK__Books__genre_id__398D8EEE");
         });
 
-        modelBuilder.Entity<FavoriteBook>(entity =>
+        modelBuilder.Entity<Combo>(entity =>
         {
-            entity.HasKey(e => new { e.CustomerId, e.BookId }).HasName("PK__Favorite__C77068F8D6C898E9");
+            entity.HasKey(e => e.ComboId).HasName("PK__Combos__18F74AA3B043405B");
 
-            entity.Property(e => e.CreatedAt)
+            entity.Property(e => e.ComboId).HasColumnName("combo_id");
+            entity.Property(e => e.CreatedDate)
                 .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
+                .HasColumnType("datetime")
+                .HasColumnName("created_date");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.DiscountPrice)
+                .HasColumnType("decimal(10, 2)")
+                .HasColumnName("discount_price");
+            entity.Property(e => e.Image)
+                .HasMaxLength(255)
+                .HasColumnName("image");
+            entity.Property(e => e.Name)
+                .HasMaxLength(100)
+                .HasColumnName("name");
+            entity.Property(e => e.TotalPrice)
+                .HasColumnType("decimal(10, 2)")
+                .HasColumnName("total_price");
+        });
 
-            entity.HasOne(d => d.Book).WithMany(p => p.FavoriteBooks)
+        modelBuilder.Entity<ComboBook>(entity =>
+        {
+            entity.HasKey(e => new { e.ComboId, e.BookId }).HasName("PK__ComboBoo__1C679B0D8633A1D7");
+
+            entity.Property(e => e.ComboId).HasColumnName("combo_id");
+            entity.Property(e => e.BookId).HasColumnName("book_id");
+            entity.Property(e => e.CreatedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_date");
+
+            entity.HasOne(d => d.Book).WithMany(p => p.ComboBooks)
                 .HasForeignKey(d => d.BookId)
-                .HasConstraintName("FK__FavoriteB__BookI__17F790F9");
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__ComboBook__book___06CD04F7");
 
-            entity.HasOne(d => d.Customer).WithMany(p => p.FavoriteBooks)
-                .HasForeignKey(d => d.CustomerId)
-                .HasConstraintName("FK__FavoriteB__Custo__17036CC0");
+            entity.HasOne(d => d.Combo).WithMany(p => p.ComboBooks)
+                .HasForeignKey(d => d.ComboId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__ComboBook__combo__05D8E0BE");
+        });
+
+        modelBuilder.Entity<Favorite>(entity =>
+        {
+            entity.HasKey(e => e.FavoriteId).HasName("PK__Favorite__46ACF4CBF1ED721B");
+
+            entity.HasIndex(e => new { e.UserId, e.BookId }, "uc_fav").IsUnique();
+
+            entity.Property(e => e.FavoriteId).HasColumnName("favorite_id");
+            entity.Property(e => e.AddedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("added_date");
+            entity.Property(e => e.BookId).HasColumnName("book_id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.HasOne(d => d.Book).WithMany(p => p.Favorites)
+                .HasForeignKey(d => d.BookId)
+                .HasConstraintName("FK__Favorites__book___571DF1D5");
+
+            entity.HasOne(d => d.User).WithMany(p => p.Favorites)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK__Favorites__user___5629CD9C");
+        });
+
+        modelBuilder.Entity<Genre>(entity =>
+        {
+            entity.HasKey(e => e.GenreId).HasName("PK__Genres__18428D42B2864AC7");
+
+            entity.Property(e => e.GenreId).HasColumnName("genre_id");
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnName("name");
         });
 
         modelBuilder.Entity<Order>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Orders__3214EC075655DA03");
+            entity.HasKey(e => e.OrderId).HasName("PK__Orders__465962299B6AE839");
 
-            entity.Property(e => e.Address).HasMaxLength(200);
-            entity.Property(e => e.City).HasMaxLength(50);
-            entity.Property(e => e.Country).HasMaxLength(50);
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.IsPaid)
+                .HasDefaultValue(false)
+                .HasColumnName("is_paid");
             entity.Property(e => e.OrderDate)
                 .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
-            entity.Property(e => e.PaymentMethod).HasMaxLength(50);
-            entity.Property(e => e.PaymentStatus)
-                .HasMaxLength(20)
-                .HasDefaultValue("Unpaid");
-            entity.Property(e => e.Phone)
-                .HasMaxLength(20)
-                .IsUnicode(false);
+                .HasColumnType("datetime")
+                .HasColumnName("order_date");
+            entity.Property(e => e.PaymentMethod)
+                .HasMaxLength(50)
+                .HasDefaultValue("COD")
+                .HasColumnName("payment_method");
+            entity.Property(e => e.ShippingAddressId).HasColumnName("shipping_address_id");
             entity.Property(e => e.Status)
                 .HasMaxLength(20)
-                .HasDefaultValue("Pending");
-            entity.Property(e => e.TotalAmount).HasColumnType("decimal(10, 2)");
+                .HasDefaultValue("Chờ xử lý")
+                .HasColumnName("status");
+            entity.Property(e => e.TotalAmount)
+                .HasColumnType("decimal(10, 2)")
+                .HasColumnName("total_amount");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.VoucherId).HasColumnName("voucher_id");
 
-            entity.HasOne(d => d.Customer).WithMany(p => p.Orders)
-                .HasForeignKey(d => d.CustomerId)
-                .HasConstraintName("FK__Orders__Customer__4E88ABD4");
+            entity.HasOne(d => d.ShippingAddress).WithMany(p => p.Orders)
+                .HasForeignKey(d => d.ShippingAddressId)
+                .HasConstraintName("FK__Orders__shipping__45F365D3");
+
+            entity.HasOne(d => d.User).WithMany(p => p.Orders)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK__Orders__user_id__44FF419A");
+
+            entity.HasOne(d => d.Voucher).WithMany(p => p.Orders)
+                .HasForeignKey(d => d.VoucherId)
+                .HasConstraintName("FK__Orders__voucher___72C60C4A");
         });
 
-        modelBuilder.Entity<OrderDetail>(entity =>
+        modelBuilder.Entity<OrderItem>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__OrderDet__3214EC07CFABDB41");
+            entity.HasKey(e => e.OrderItemId).HasName("PK__Order_It__3764B6BC521AE842");
 
-            entity.Property(e => e.Discount)
-                .HasDefaultValue(0m)
-                .HasColumnType("decimal(10, 2)");
-            entity.Property(e => e.UnitPrice).HasColumnType("decimal(10, 2)");
+            entity.ToTable("Order_Items");
 
-            entity.HasOne(d => d.Book).WithMany(p => p.OrderDetails)
+            entity.Property(e => e.OrderItemId).HasColumnName("order_item_id");
+            entity.Property(e => e.BookId).HasColumnName("book_id");
+            entity.Property(e => e.ComboId).HasColumnName("combo_id");
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.Price)
+                .HasColumnType("decimal(10, 2)")
+                .HasColumnName("price");
+            entity.Property(e => e.Quantity).HasColumnName("quantity");
+
+            entity.HasOne(d => d.Book).WithMany(p => p.OrderItems)
                 .HasForeignKey(d => d.BookId)
-                .HasConstraintName("FK__OrderDeta__BookI__2B0A656D");
+                .HasConstraintName("FK__Order_Ite__book___4CA06362");
 
-            entity.HasOne(d => d.Order).WithMany(p => p.OrderDetails)
+            entity.HasOne(d => d.Combo).WithMany(p => p.OrderItems)
+                .HasForeignKey(d => d.ComboId)
+                .HasConstraintName("FK_OrderItems_Combos");
+
+            entity.HasOne(d => d.Order).WithMany(p => p.OrderItems)
                 .HasForeignKey(d => d.OrderId)
-                .HasConstraintName("FK__OrderDeta__Order__2A164134");
-        });
-
-        modelBuilder.Entity<Promotion>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PK__Promotio__3214EC076092E9ED");
-
-            entity.HasIndex(e => e.Code, "UQ__Promotio__A25C5AA726E1256D").IsUnique();
-
-            entity.Property(e => e.Code)
-                .HasMaxLength(50)
-                .IsUnicode(false);
-            entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.Discount).HasColumnType("decimal(5, 2)");
-            entity.Property(e => e.EndDate).HasColumnType("datetime");
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
-            entity.Property(e => e.StartDate).HasColumnType("datetime");
-        });
-
-        modelBuilder.Entity<Publisher>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PK__Publishe__3214EC07C75D312D");
-
-            entity.Property(e => e.Address).HasMaxLength(200);
-            entity.Property(e => e.Email)
-                .HasMaxLength(100)
-                .IsUnicode(false);
-            entity.Property(e => e.Name)
-                .IsRequired()
-                .HasMaxLength(100);
-            entity.Property(e => e.Phone)
-                .HasMaxLength(20)
-                .IsUnicode(false);
+                .HasConstraintName("FK__Order_Ite__order__4BAC3F29");
         });
 
         modelBuilder.Entity<Review>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Reviews__3214EC07DDB68031");
+            entity.HasKey(e => e.ReviewId).HasName("PK__Reviews__60883D90822E4319");
 
-            entity.Property(e => e.CreatedAt)
+            entity.Property(e => e.ReviewId).HasColumnName("review_id");
+            entity.Property(e => e.BookId).HasColumnName("book_id");
+            entity.Property(e => e.Comment).HasColumnName("comment");
+            entity.Property(e => e.Rating).HasColumnName("rating");
+            entity.Property(e => e.ReviewDate)
                 .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
+                .HasColumnType("datetime")
+                .HasColumnName("review_date");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
 
             entity.HasOne(d => d.Book).WithMany(p => p.Reviews)
                 .HasForeignKey(d => d.BookId)
-                .HasConstraintName("FK__Reviews__BookId__5812160E");
+                .HasConstraintName("FK__Reviews__book_id__4F7CD00D");
 
-            entity.HasOne(d => d.Customer).WithMany(p => p.Reviews)
-                .HasForeignKey(d => d.CustomerId)
-                .HasConstraintName("FK__Reviews__Custome__59063A47");
+            entity.HasOne(d => d.User).WithMany(p => p.Reviews)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK__Reviews__user_id__5070F446");
+        });
+
+        modelBuilder.Entity<ShippingAddress>(entity =>
+        {
+            entity.HasKey(e => e.AddressId).HasName("PK__Shipping__CAA247C81AC12B63");
+
+            entity.ToTable("Shipping_Addresses");
+
+            entity.Property(e => e.AddressId).HasColumnName("address_id");
+            entity.Property(e => e.Address)
+                .HasMaxLength(255)
+                .HasColumnName("address");
+            entity.Property(e => e.PhoneNumber)
+                .HasMaxLength(20)
+                .HasColumnName("phone_number");
+            entity.Property(e => e.RecipientName)
+                .HasMaxLength(100)
+                .HasColumnName("recipient_name");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.HasOne(d => d.User).WithMany(p => p.ShippingAddresses)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK__Shipping___user___4222D4EF");
+        });
+
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasKey(e => e.UserId).HasName("PK__Users__B9BE370FB1256A80");
+
+            entity.HasIndex(e => e.Email, "UQ__Users__AB6E61645C0BBFF6").IsUnique();
+
+            entity.HasIndex(e => e.Username, "UQ__Users__F3DBC572579BB15A").IsUnique();
+
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.Email)
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnName("email");
+            entity.Property(e => e.Password)
+                .IsRequired()
+                .HasMaxLength(255)
+                .HasColumnName("password");
+            entity.Property(e => e.ResetToken)
+                .HasMaxLength(100)
+                .HasColumnName("reset_token");
+            entity.Property(e => e.ResetTokenExpiration)
+                .HasColumnType("datetime")
+                .HasColumnName("reset_token_expiration");
+            entity.Property(e => e.Role)
+                .HasMaxLength(20)
+                .HasDefaultValue("user")
+                .HasColumnName("role");
+            entity.Property(e => e.Username)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnName("username");
+        });
+
+        modelBuilder.Entity<Voucher>(entity =>
+        {
+            entity.HasKey(e => e.VoucherId).HasName("PK__Vouchers__80B6FFA803241B3B");
+
+            entity.HasIndex(e => e.Code, "UQ__Vouchers__357D4CF91BC537BC").IsUnique();
+
+            entity.Property(e => e.VoucherId).HasColumnName("voucher_id");
+            entity.Property(e => e.Code)
+                .HasMaxLength(50)
+                .HasColumnName("code");
+            entity.Property(e => e.DiscountPercent).HasColumnName("discount_percent");
+            entity.Property(e => e.ExpiryDate).HasColumnName("expiry_date");
+            entity.Property(e => e.MaxDiscount)
+                .HasColumnType("decimal(10, 2)")
+                .HasColumnName("max_discount");
+            entity.Property(e => e.MinOrderAmount)
+                .HasColumnType("decimal(10, 2)")
+                .HasColumnName("min_order_amount");
+            entity.Property(e => e.UsageLimit).HasColumnName("usage_limit");
+            entity.Property(e => e.UsedCount)
+                .HasDefaultValue(0)
+                .HasColumnName("used_count");
         });
 
         OnModelCreatingPartial(modelBuilder);

@@ -19,8 +19,13 @@
                 _context = context;
                 _env = env;
             }
+        [HttpGet("ping")]
+        public IActionResult Ping()
+        {
+            return Ok("API sống!");
+        }
 
-            [HttpGet]
+        [HttpGet]
             public async Task<ActionResult<ResultCustomModel<List<BookResponse>>>> GetAll()
             {
                 var books = await _context.Books

@@ -12,15 +12,15 @@ namespace BookStoreAPI.Controllers
     public class ComboController : ControllerBase
     {
         private readonly BookStoreDBContext _context;
-        private readonly IWebHostEnvironment _env; // ✅ thêm dòng này
+        private readonly IWebHostEnvironment _env;
 
         public ComboController(BookStoreDBContext context, IWebHostEnvironment env)
         {
             _context = context;
-            _env = env; // ✅ gán
+            _env = env;
         }
 
-        // Lấy danh sách combo
+        // GET: api/combo
         [HttpGet]
         public async Task<ActionResult<ResultCustomModel<List<ComboResponse>>>> GetAll()
         {
@@ -35,8 +35,8 @@ namespace BookStoreAPI.Controllers
                     TotalPrice = c.TotalPrice ?? 0,
                     DiscountPrice = c.DiscountPrice ?? 0,
                     Image = string.IsNullOrEmpty(c.Image)
-        ? null
-        : $"{Request.Scheme}://{Request.Host}/images/combos/{c.Image}",
+                        ? null
+                        : $"{Request.Scheme}://{Request.Host}/images/combos/{c.Image}",
                     CreatedDate = c.CreatedDate,
                     Books = c.ComboBooks.Select(cb => new BookResponse
                     {
@@ -53,7 +53,7 @@ namespace BookStoreAPI.Controllers
                             : $"{Request.Scheme}://{Request.Host}/images/books/{cb.Book.CoverImage}"
                     }).ToList()
                 })
-.ToListAsync();
+                .ToListAsync();
 
             return Ok(new ResultCustomModel<List<ComboResponse>>
             {
@@ -63,49 +63,7 @@ namespace BookStoreAPI.Controllers
             });
         }
 
-        [HttpPost("Create")]
-        public async Task<ActionResult> Create([FromForm] ComboRequest request)
-        {
-            string imageFileName = null;
-            if (request.Image != null)
-            {
-                // dùng lại logic SaveImageAsync của BookController nếu có
-                imageFileName = await SaveImageAsync(request.Image);
-            }
-
-            var combo = new Combo
-            {
-                Name = request.Name,
-                Description = request.Description,
-                TotalPrice = request.TotalPrice,
-                DiscountPrice = request.DiscountPrice,
-                Image = imageFileName, // ✅ lưu tên ảnh
-                CreatedDate = DateTime.Now,
-                ComboBooks = request.BookIds.Select(id => new ComboBook { BookId = id }).ToList()
-            };
-
-            _context.Combos.Add(combo);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "✅ Đã tạo combo" });
-        }
-
-        private async Task<string> SaveImageAsync(IFormFile file)
-        {
-            if (file == null) return null;
-
-            var folder = Path.Combine(_env.WebRootPath, "images", "combos"); // ✅ lưu combo riêng
-            Directory.CreateDirectory(folder); // tạo nếu chưa có
-
-            var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
-            var path = Path.Combine(folder, fileName);
-
-            using var stream = new FileStream(path, FileMode.Create);
-            await file.CopyToAsync(stream);
-
-            return fileName;
-        }
-        // Lấy combo theo ID
+        // GET: api/combo/{id}
         [HttpGet("{id}")]
         public async Task<ActionResult<ResultCustomModel<ComboResponse>>> GetById(int id)
         {
@@ -155,7 +113,36 @@ namespace BookStoreAPI.Controllers
                 Data = result
             });
         }
-        [HttpPut("Update/{id}")]
+
+        // POST: api/combo
+        [HttpPost("create")]
+        public async Task<ActionResult> Create([FromForm] ComboRequest request)
+        {
+            string imageFileName = null;
+            if (request.Image != null)
+            {
+                imageFileName = await SaveImageAsync(request.Image);
+            }
+
+            var combo = new Combo
+            {
+                Name = request.Name,
+                Description = request.Description,
+                TotalPrice = request.TotalPrice,
+                DiscountPrice = request.DiscountPrice,
+                Image = imageFileName,
+                CreatedDate = DateTime.Now,
+                ComboBooks = request.BookIds.Select(id => new ComboBook { BookId = id }).ToList()
+            };
+
+            _context.Combos.Add(combo);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "✅ Đã tạo combo" });
+        }
+
+        // PUT: api/combo/{id}
+        [HttpPut("update/{id}")]
         public async Task<ActionResult> Update(int id, [FromForm] ComboRequest request)
         {
             var combo = await _context.Combos
@@ -170,14 +157,11 @@ namespace BookStoreAPI.Controllers
             combo.TotalPrice = request.TotalPrice;
             combo.DiscountPrice = request.DiscountPrice;
 
-            // Nếu có ảnh mới thì lưu lại
             if (request.Image != null)
             {
-                var fileName = await SaveImageAsync(request.Image);
-                combo.Image = fileName;
+                combo.Image = await SaveImageAsync(request.Image);
             }
 
-            // Xoá combo cũ rồi thêm combo mới
             _context.ComboBooks.RemoveRange(combo.ComboBooks);
             combo.ComboBooks = request.BookIds.Select(id => new ComboBook { BookId = id }).ToList();
 
@@ -186,8 +170,8 @@ namespace BookStoreAPI.Controllers
             return Ok(new { success = true, message = "✅ Cập nhật combo thành công" });
         }
 
-        // Xoá combo
-        [HttpDelete("Delete{id}")]
+        // DELETE: api/combo/{id}
+        [HttpDelete("delete/{id}")]
         public async Task<ActionResult> Delete(int id)
         {
             var combo = await _context.Combos
@@ -200,9 +184,24 @@ namespace BookStoreAPI.Controllers
             _context.ComboBooks.RemoveRange(combo.ComboBooks);
             _context.Combos.Remove(combo);
             await _context.SaveChangesAsync();
-            await _context.SaveChangesAsync();
 
             return Ok(new { success = true, message = "🗑️ Đã xoá combo" });
+        }
+
+        private async Task<string> SaveImageAsync(IFormFile file)
+        {
+            if (file == null) return null;
+
+            var folder = Path.Combine(_env.WebRootPath, "images", "combos");
+            Directory.CreateDirectory(folder);
+
+            var fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
+            var path = Path.Combine(folder, fileName);
+
+            using var stream = new FileStream(path, FileMode.Create);
+            await file.CopyToAsync(stream);
+
+            return fileName;
         }
     }
 }

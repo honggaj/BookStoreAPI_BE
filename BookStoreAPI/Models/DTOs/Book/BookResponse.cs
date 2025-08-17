@@ -13,7 +13,9 @@
             public int Stock { get; set; }
             public string Description { get; set; }
             public DateOnly? PublishedDate { get; set; }
-            public string CoverImageUrl { get; set; } // URL full path nè
+        public string GenreName { get; set; } // <-- thêm dòng này
+
+        public string CoverImageUrl { get; set; } // URL full path nè
         public decimal? AverageRating { get; set; } // ⭐️ Thêm dòng này
 
     }

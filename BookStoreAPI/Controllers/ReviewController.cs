@@ -1,5 +1,4 @@
 ﻿using BookStoreAPI.Models;
-using BookStoreAPI.Models.Response; // ✅ result model
 using BookStoreAPI.Models.DTOs.Review;
 using BookStoreAPI.Models.Response;
 using Microsoft.AspNetCore.Mvc;
@@ -18,65 +17,45 @@ namespace BookStoreAPI.Controllers
             _context = context;
         }
 
-        // GET: api/Review
+        // GET: api/review
         [HttpGet]
         public async Task<ActionResult<ResultCustomModel<List<ReviewResponse>>>> GetAll()
         {
             var reviews = await _context.Reviews
                 .Include(r => r.User)
                 .Include(r => r.Book)
-                .Select(r => new ReviewResponse
-                {
-                    ReviewId = r.ReviewId,
-                    BookId = r.BookId ?? 0,
-                    BookTitle = r.Book.Title,
-                    UserId = r.UserId ?? 0,
-                    Username = r.User.Username,
-                    Rating = r.Rating ?? 0,
-                    Comment = r.Comment,
-                    ReviewDate = r.ReviewDate
-                })
+                .Select(r => MapToReviewResponse(r))
                 .ToListAsync();
 
             return Ok(new ResultCustomModel<List<ReviewResponse>>
             {
                 Success = true,
-                Message = "Lấy tất cả đánh giá thành công",
+                Message = $"⭐ Lấy tất cả {reviews.Count} đánh giá thành công",
                 Data = reviews
             });
         }
 
-        // GET: api/Review/Book/1
-        [HttpGet("Book/{bookId}")]
+        // GET: api/review/book/{bookId}
+        [HttpGet("book/{bookId}")]
         public async Task<ActionResult<ResultCustomModel<List<ReviewResponse>>>> GetByBook(int bookId)
         {
             var reviews = await _context.Reviews
                 .Where(r => r.BookId == bookId)
                 .Include(r => r.User)
                 .Include(r => r.Book)
-                .Select(r => new ReviewResponse
-                {
-                    ReviewId = r.ReviewId,
-                    BookId = r.BookId ?? 0,
-                    BookTitle = r.Book.Title,
-                    UserId = r.UserId ?? 0,
-                    Username = r.User.Username,
-                    Rating = r.Rating ?? 0,
-                    Comment = r.Comment,
-                    ReviewDate = r.ReviewDate
-                })
+                .Select(r => MapToReviewResponse(r))
                 .ToListAsync();
 
             return Ok(new ResultCustomModel<List<ReviewResponse>>
             {
                 Success = true,
-                Message = $"Lấy đánh giá sách Id {bookId} thành công",
+                Message = $"⭐ Lấy {reviews.Count} đánh giá của sách ID {bookId} thành công",
                 Data = reviews
             });
         }
 
-        // POST: api/Review/Create
-        [HttpPost("Create")]
+        // POST: api/review
+        [HttpPost]
         public async Task<ActionResult<ResultCustomModel<object>>> Create(ReviewRequest request)
         {
             var review = new Review
@@ -94,30 +73,26 @@ namespace BookStoreAPI.Controllers
             return Ok(new ResultCustomModel<object>
             {
                 Success = true,
-                Message = "Đã thêm đánh giá",
+                Message = "✅ Đã thêm đánh giá",
                 Data = new { id = review.ReviewId }
             });
         }
 
-        [HttpPut("Update/{id}")]
+        // PUT: api/review/{id}
+        [HttpPut("{id}")]
         public async Task<ActionResult<ResultCustomModel<object>>> Update(int id, ReviewRequest request)
         {
             var review = await _context.Reviews.FindAsync(id);
             if (review == null)
-            {
                 return NotFound(new ResultCustomModel<object>
                 {
                     Success = false,
-                    Message = "Không tìm thấy đánh giá",
+                    Message = "❌ Không tìm thấy đánh giá",
                     Data = null
                 });
-            }
 
-            // Check UserId: chỉ cho phép user tạo review được update
             if (review.UserId != request.UserId)
-            {
-                return Forbid(); // hoặc dùng Unauthorized(...) nếu muốn
-            }
+                return Forbid(); // 403
 
             review.Rating = request.Rating;
             review.Comment = request.Comment;
@@ -129,31 +104,26 @@ namespace BookStoreAPI.Controllers
             return Ok(new ResultCustomModel<object>
             {
                 Success = true,
-                Message = "Đã cập nhật đánh giá",
+                Message = "✅ Đã cập nhật đánh giá",
                 Data = null
             });
         }
 
-
-        [HttpDelete("Delete/{id}")]
+        // DELETE: api/review/{id}?userId=1
+        [HttpDelete("{id}")]
         public async Task<ActionResult<ResultCustomModel<object>>> Delete(int id, [FromQuery] int userId)
         {
             var review = await _context.Reviews.FindAsync(id);
             if (review == null)
-            {
                 return NotFound(new ResultCustomModel<object>
                 {
                     Success = false,
-                    Message = "Không tìm thấy đánh giá để xóa",
+                    Message = "❌ Không tìm thấy đánh giá để xóa",
                     Data = null
                 });
-            }
 
-            // ✅ Kiểm tra quyền xóa
             if (review.UserId != userId)
-            {
-                return Forbid(); // 403
-            }
+                return Forbid();
 
             _context.Reviews.Remove(review);
             await _context.SaveChangesAsync();
@@ -161,10 +131,25 @@ namespace BookStoreAPI.Controllers
             return Ok(new ResultCustomModel<object>
             {
                 Success = true,
-                Message = "Đã xóa đánh giá",
+                Message = "🗑️ Đã xóa đánh giá",
                 Data = null
             });
         }
 
+        // helper: map review => response
+        private static ReviewResponse MapToReviewResponse(Review r)
+        {
+            return new ReviewResponse
+            {
+                ReviewId = r.ReviewId,
+                BookId = r.BookId ?? 0,
+                BookTitle = r.Book?.Title,
+                UserId = r.UserId ?? 0,
+                Username = r.User?.Username,
+                Rating = r.Rating ?? 0,
+                Comment = r.Comment,
+                ReviewDate = r.ReviewDate
+            };
+        }
     }
 }

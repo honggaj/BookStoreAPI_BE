@@ -1,5 +1,4 @@
 ﻿using BookStoreAPI.Models;
-using BookStoreAPI.Models.Response; // ✅ dùng ResultCustomModel<>
 using BookStoreAPI.Models.DTOs.Favorite;
 using BookStoreAPI.Models.Response;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +17,7 @@ namespace BookStoreAPI.Controllers
             _context = context;
         }
 
-        // GET: api/Favorite
+        // GET: api/favorite
         [HttpGet]
         public async Task<ActionResult<ResultCustomModel<List<FavoriteResponse>>>> GetAll()
         {
@@ -32,20 +31,21 @@ namespace BookStoreAPI.Controllers
                     Username = f.User.Username,
                     BookId = f.BookId ?? 0,
                     BookTitle = f.Book.Title,
-                    AddedDate = f.AddedDate
+                    AddedDate = f.AddedDate,
+                    CoverImageUrl = f.Book.CoverImage
                 })
                 .ToListAsync();
 
             return Ok(new ResultCustomModel<List<FavoriteResponse>>
             {
                 Success = true,
-                Message = "Lấy danh sách yêu thích thành công",
+                Message = "📚 Lấy danh sách yêu thích thành công",
                 Data = favs
             });
         }
 
-        // GET: api/Favorite/User/1
-        [HttpGet("User/{userId}")]
+        // GET: api/favorite/user/1
+        [HttpGet("user/{userId}")]
         public async Task<ActionResult<ResultCustomModel<List<FavoriteResponse>>>> GetByUser(int userId)
         {
             var favs = await _context.Favorites
@@ -60,34 +60,32 @@ namespace BookStoreAPI.Controllers
                     BookId = f.BookId ?? 0,
                     BookTitle = f.Book.Title,
                     AddedDate = f.AddedDate,
-                    CoverImageUrl = f.Book.CoverImage, // ✅ Gán đúng tên property
+                    CoverImageUrl = f.Book.CoverImage
                 })
                 .ToListAsync();
 
             return Ok(new ResultCustomModel<List<FavoriteResponse>>
             {
                 Success = true,
-                Message = "Lấy danh sách yêu thích của người dùng thành công",
+                Message = "📌 Lấy danh sách yêu thích của người dùng thành công",
                 Data = favs
             });
         }
 
-        // POST: api/Favorite/Add
-        [HttpPost("Add")]
+        // POST: api/favorite
+        [HttpPost]
         public async Task<ActionResult<ResultCustomModel<object>>> Add(FavoriteRequest request)
         {
             var existing = await _context.Favorites
                 .FirstOrDefaultAsync(f => f.UserId == request.UserId && f.BookId == request.BookId);
 
             if (existing != null)
-            {
                 return BadRequest(new ResultCustomModel<object>
                 {
                     Success = false,
-                    Message = "Đã yêu thích sách này rồi!",
+                    Message = "⚠️ Sách này đã có trong yêu thích",
                     Data = null
                 });
-            }
 
             var fav = new Favorite
             {
@@ -102,25 +100,23 @@ namespace BookStoreAPI.Controllers
             return Ok(new ResultCustomModel<object>
             {
                 Success = true,
-                Message = "Đã thêm vào yêu thích",
+                Message = "✅ Đã thêm sách vào yêu thích",
                 Data = new { id = fav.FavoriteId }
             });
         }
 
-        // DELETE: api/Favorite/Delete/5
-        [HttpDelete("Delete/{id}")]
+        // DELETE: api/favorite/5
+        [HttpDelete("{id}")]
         public async Task<ActionResult<ResultCustomModel<object>>> Delete(int id)
         {
             var fav = await _context.Favorites.FindAsync(id);
             if (fav == null)
-            {
                 return NotFound(new ResultCustomModel<object>
                 {
                     Success = false,
-                    Message = "Không tìm thấy mục yêu thích",
+                    Message = "❌ Không tìm thấy mục yêu thích",
                     Data = null
                 });
-            }
 
             _context.Favorites.Remove(fav);
             await _context.SaveChangesAsync();
@@ -128,27 +124,25 @@ namespace BookStoreAPI.Controllers
             return Ok(new ResultCustomModel<object>
             {
                 Success = true,
-                Message = "Đã xóa yêu thích",
+                Message = "🗑️ Đã xóa mục yêu thích",
                 Data = null
             });
         }
 
-        // DELETE: api/Favorite/DeleteByUserBook?userId=1&bookId=2
-        [HttpDelete("DeleteByUserBook")]
+        // DELETE: api/favorite/user-book?userId=1&bookId=2
+        [HttpDelete("user-book")]
         public async Task<ActionResult<ResultCustomModel<object>>> DeleteByUserAndBook(int userId, int bookId)
         {
             var fav = await _context.Favorites
                 .FirstOrDefaultAsync(f => f.UserId == userId && f.BookId == bookId);
 
             if (fav == null)
-            {
                 return NotFound(new ResultCustomModel<object>
                 {
                     Success = false,
-                    Message = "Không tìm thấy yêu thích để gỡ",
+                    Message = "❌ Không tìm thấy yêu thích để gỡ",
                     Data = null
                 });
-            }
 
             _context.Favorites.Remove(fav);
             await _context.SaveChangesAsync();
@@ -156,7 +150,7 @@ namespace BookStoreAPI.Controllers
             return Ok(new ResultCustomModel<object>
             {
                 Success = true,
-                Message = "Đã gỡ yêu thích khỏi sách",
+                Message = "🗑️ Đã gỡ yêu thích khỏi sách",
                 Data = null
             });
         }

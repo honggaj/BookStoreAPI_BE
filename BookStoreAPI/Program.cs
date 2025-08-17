@@ -112,6 +112,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapGet("/", () => "✅ BookStore API is live and healthy!");
 
 app.Run();

@@ -11,197 +11,191 @@ using System.Net.Mail;
 using System.Security.Claims;
 using System.Text;
 
-
-[Route("api/[controller]")]
-[ApiController]
-public class AuthController : ControllerBase
+namespace BookStoreAPI.Controllers
 {
-    private readonly BookStoreDBContext _context;
-    private readonly IConfiguration _configuration;
-    private readonly JwtService _jwtService;
-
-    public AuthController(BookStoreDBContext context, IConfiguration configuration, JwtService jwtService)
+    [Route("api/[controller]")]
+    [ApiController]
+    public class AuthController : ControllerBase
     {
-        _context = context;
-        _configuration = configuration;
-        _jwtService = jwtService;
-    }
+        private readonly BookStoreDBContext _context;
+        private readonly IConfiguration _configuration;
+        private readonly JwtService _jwtService;
 
-
-    [HttpPost("Login")]
-    public IActionResult Login([FromBody] LoginRequest request)
-    {
-        var user = _context.Users.SingleOrDefault(u => u.Email == request.Email);
-        if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.Password))
+        public AuthController(BookStoreDBContext context, IConfiguration configuration, JwtService jwtService)
         {
-            return Unauthorized("Sai tài khoản hoặc mật khẩu");
+            _context = context;
+            _configuration = configuration;
+            _jwtService = jwtService;
         }
 
-        var token = GenerateJwtToken(user);
-
-        return Ok(new LoginResponse
+        // POST: api/auth/login
+        [HttpPost("login")]
+        public IActionResult Login([FromBody] LoginRequest request)
         {
-            UserId = user.UserId,        // ✅ thêm dòng này
-            Token = token,
-            Username = user.Username,
-            Email = user.Email,
-            Role = user.Role
-        });
-    }
+            var user = _context.Users.SingleOrDefault(u => u.Email == request.Email);
+            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.Password))
+                return Unauthorized("Sai tài khoản hoặc mật khẩu");
 
-    [HttpPost("Register")]
-    public IActionResult Register([FromBody] RegisterRequest request)
-    {
-        if (_context.Users.Any(u => u.Email == request.Email))
-            return BadRequest("Email đã được sử dụng.");
+            var token = GenerateJwtToken(user);
 
-        if (_context.Users.Any(u => u.Username == request.Username))
-            return BadRequest("Username đã tồn tại.");
+            return Ok(new LoginResponse
+            {
+                UserId = user.UserId,
+                Token = token,
+                Username = user.Username,
+                Email = user.Email,
+                Role = user.Role
+            });
+        }
 
-        var hashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password);
-
-        var user = new User
+        // POST: api/auth/register
+        [HttpPost("register")]
+        public IActionResult Register([FromBody] RegisterRequest request)
         {
-            Username = request.Username,
-            Email = request.Email,
-            Password = hashedPassword,
-            Role = "User"
-        };
+            if (_context.Users.Any(u => u.Email == request.Email))
+                return BadRequest("Email đã được sử dụng.");
 
-        _context.Users.Add(user);
-        _context.SaveChanges();
+            if (_context.Users.Any(u => u.Username == request.Username))
+                return BadRequest("Username đã tồn tại.");
 
-        // ✅ Gửi email chào mừng
-        try
+            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
+            var user = new User
+            {
+                Username = request.Username,
+                Email = request.Email,
+                Password = hashedPassword,
+                Role = "User"
+            };
+
+            _context.Users.Add(user);
+            _context.SaveChanges();
+
+            try
+            {
+                var smtp = _configuration.GetSection("Smtp");
+
+                var message = new MailMessage();
+                message.From = new MailAddress(smtp["Username"]);
+                message.To.Add(user.Email);
+                message.Subject = "🎉 Chào mừng đến với Tatsumaki BookStore!";
+                message.Body = $"Xin chào {user.Username},\n\n" +
+                               $"Cảm ơn bạn đã đăng ký tài khoản tại Tatsumaki BookStore!\n" +
+                               $"Hãy khám phá thế giới sách đầy màu sắc nhé 📚✨\n\n" +
+                               $"Truy cập ngay: http://localhost:4200";
+
+                using var client = new SmtpClient(smtp["Host"], int.Parse(smtp["Port"]));
+                client.Credentials = new NetworkCredential(smtp["Username"], smtp["Password"]);
+                client.EnableSsl = bool.Parse(smtp["EnableSsl"]);
+                client.Send(message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Lỗi gửi email: " + ex.Message);
+            }
+
+            return Ok("Đăng ký thành công! Email chào mừng đã được gửi.");
+        }
+
+        // POST: api/auth/forgot-password
+        [HttpPost("forgot-password")]
+        public IActionResult ForgotPassword([FromBody] ForgotPasswordRequest request)
         {
+            var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
+            if (user == null) return NotFound("Email không tồn tại.");
+
+            var token = Guid.NewGuid().ToString();
+            user.ResetToken = token;
+            user.ResetTokenExpiration = DateTime.UtcNow.AddMinutes(15);
+            _context.SaveChanges();
+
             var smtp = _configuration.GetSection("Smtp");
-
             var message = new MailMessage();
             message.From = new MailAddress(smtp["Username"]);
             message.To.Add(user.Email);
-            message.Subject = "🎉 Chào mừng đến với Tatsumaki BookStore!";
-            message.Body = $"Xin chào {user.Username},\n\n" +
-                           $"Cảm ơn bạn đã đăng ký tài khoản tại Tatsumaki BookStore!\n" +
-                           $"Hãy khám phá thế giới sách đầy màu sắc nhé 📚✨\n\n" +
-                           $"Truy cập ngay: http://localhost:4200";
+            message.Subject = "Đặt lại mật khẩu BookStore";
+            message.Body = $"Mã đặt lại mật khẩu của bạn: {token}";
 
             using var client = new SmtpClient(smtp["Host"], int.Parse(smtp["Port"]));
             client.Credentials = new NetworkCredential(smtp["Username"], smtp["Password"]);
             client.EnableSsl = bool.Parse(smtp["EnableSsl"]);
             client.Send(message);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Lỗi gửi email: " + ex.Message);
-            // Bạn có thể log hoặc ignore tùy dự án
+
+            return Ok("Đã gửi mã khôi phục qua email.");
         }
 
-        return Ok("Đăng ký thành công! Email chào mừng đã được gửi.");
-    }
-
-    private string GenerateJwtToken(User user)
-    {
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var claims = new[]
+        // POST: api/auth/reset-password
+        [HttpPost("reset-password")]
+        public IActionResult ResetPassword([FromBody] ResetPasswordRequest request)
         {
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Role, user.Role)
-        };
+            var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
+            if (user == null || user.ResetToken != request.Token || user.ResetTokenExpiration < DateTime.UtcNow)
+                return BadRequest("Token không hợp lệ hoặc đã hết hạn.");
 
-        var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
-            claims: claims,
-            expires: DateTime.UtcNow.AddHours(2),
-            signingCredentials: creds
-        );
+            user.Password = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            user.ResetToken = null;
+            user.ResetTokenExpiration = null;
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
-    }
-
-    [HttpPost("ForgotPassword")]
-    public IActionResult ForgotPassword([FromBody] ForgotPasswordRequest request)
-    {
-        var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
-        if (user == null) return NotFound("Email không tồn tại.");
-
-        // Tạo mã ngẫu nhiên
-        var token = Guid.NewGuid().ToString();
-
-        // Lưu mã vào DB hoặc memory cache (tạm demo lưu vào user table)
-        user.ResetToken = token;
-        user.ResetTokenExpiration = DateTime.UtcNow.AddMinutes(15); // 15 phút hết hạn
-        _context.SaveChanges();
-
-        // Gửi email
-        var smtp = _configuration.GetSection("Smtp");
-        var message = new MailMessage();
-        message.From = new MailAddress(smtp["Username"]);
-        message.To.Add(user.Email);
-        message.Subject = "Đặt lại mật khẩu BookStore";
-        message.Body = $"Mã đặt lại mật khẩu của bạn: {token}";
-
-        using var client = new SmtpClient(smtp["Host"], int.Parse(smtp["Port"]));
-        client.Credentials = new NetworkCredential(smtp["Username"], smtp["Password"]);
-        client.EnableSsl = bool.Parse(smtp["EnableSsl"]);
-        client.Send(message);
-
-        return Ok("Đã gửi mã khôi phục qua email.");
-    }
-    [HttpPost("ResetPassword")]
-    public IActionResult ResetPassword([FromBody] ResetPasswordRequest request)
-    {
-        var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
-        if (user == null || user.ResetToken != request.Token || user.ResetTokenExpiration < DateTime.UtcNow)
-        {
-            return BadRequest("Token không hợp lệ hoặc đã hết hạn.");
+            _context.SaveChanges();
+            return Ok("Đổi mật khẩu thành công.");
         }
 
-        user.Password = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        user.ResetToken = null;
-        user.ResetTokenExpiration = null;
-
-        _context.SaveChanges();
-        return Ok("Đổi mật khẩu thành công.");
-    }
-
-    [HttpPost("GoogleLogin")]
-    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)] // 🪄 THÊM DÒNG NÀY
-    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
-    {
-        var idToken = request.IdToken;
-        var validPayload = await GoogleJsonWebSignature.ValidateAsync(idToken);
-        var email = validPayload.Email;
-
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
-
-        if (user == null)
+        // POST: api/auth/google-login
+        [HttpPost("google-login")]
+        [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
         {
-            user = new User
+            var idToken = request.IdToken;
+            var validPayload = await GoogleJsonWebSignature.ValidateAsync(idToken);
+            var email = validPayload.Email;
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+
+            if (user == null)
             {
-                Username = validPayload.Name,
-                Email = email,
-                Password = "GOOGLE_LOGIN",
-                Role = "User"
-            };
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+                user = new User
+                {
+                    Username = validPayload.Name,
+                    Email = email,
+                    Password = "GOOGLE_LOGIN",
+                    Role = "User"
+                };
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+            }
+
+            var token = _jwtService.GenerateToken(user.Email, user.Role);
+
+            return Ok(new LoginResponse
+            {
+                UserId = user.UserId,
+                Token = token,
+                Username = user.Username,
+                Email = user.Email,
+                Role = user.Role
+            });
         }
 
-        var token = _jwtService.GenerateToken(user.Email, user.Role);
-
-        return Ok(new LoginResponse
+        private string GenerateJwtToken(User user)
         {
-            UserId = user.UserId,
-            Token = token,
-            Username = user.Username,
-            Email = user.Email,
-            Role = user.Role
-        });
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Role, user.Role)
+            };
+
+            var token = new JwtSecurityToken(
+                issuer: _configuration["Jwt:Issuer"],
+                audience: _configuration["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddHours(2),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
     }
-
-
-
 }
